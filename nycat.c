@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS
+
 #define LEN(a) (sizeof(a)/sizeof(*(a)))
 
 #include <stdio.h>
@@ -49,7 +51,7 @@ main(int argc, char **argv)
 	}
 	
 	for (path = &argv[1]; *path; path++) {
-		if (!(f = fopen(*path, "r")))
+		if ((f = fopen(*path, "r")) == NULL)
 			goto error;
 		while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
 			nywrite(buf, n, stdout);
