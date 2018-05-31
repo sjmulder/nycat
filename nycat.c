@@ -1,10 +1,15 @@
 #define _CRT_SECURE_NO_WARNINGS
+#define WIN32_LEAN_AND_MEAN
 
 #define LEN(a) (sizeof(a)/sizeof(*(a)))
 
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 static const char colors[][6] = {
 	"\x1B[31m",
@@ -15,6 +20,39 @@ static const char colors[][6] = {
 	"\x1B[94m",
 	"\x1B[95m"
 };
+
+static int
+setup(void)
+{
+#if _WIN32
+	HANDLE handle;
+	DWORD mode;
+
+	handle = GetStdHandle(STD_OUTPUT_HANDLE);
+	if (handle == NULL) {
+		fputs("No attached console\n", stdout);
+		return -1;
+	} else if (handle == INVALID_HANDLE_VALUE) {
+		fprintf(stderr, "GetStdHandle(): error %d\n", GetLastError());
+		return -1;
+	}
+
+	if (GetConsoleMode(handle, &mode) == 0) {
+		fprintf(stderr, "GetConsoleMode(): error %d\n",
+		    GetLastError());
+		return -1;
+	}
+
+	mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+	if (SetConsoleMode(handle, mode) == 0) {
+		fprintf(stderr, "SetConsoleMode(): error %d\n",
+		    GetLastError());
+		return -1;
+	}
+#endif
+
+	return 0;
+}
 
 static void
 nywrite(const char *p, size_t n, FILE *f)
@@ -43,6 +81,9 @@ main(int argc, char **argv)
 	FILE *f;
 	char buf[4096];
 	size_t n;
+
+	if (setup() == -1)
+		return 1;
 
 	if (argc <= 1) {
 		fputs("usage: nycat file file ...\n", stderr);
