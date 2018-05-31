@@ -40,7 +40,6 @@ nywrite(const char *p, size_t n, FILE *f)
 int
 main(int argc, char **argv)
 {
-	char **path;
 	FILE *f;
 	char buf[4096];
 	size_t n;
@@ -49,9 +48,9 @@ main(int argc, char **argv)
 		fputs("usage: nycat file file ...\n", stderr);
 		return 1;
 	}
-	
-	for (path = &argv[1]; *path; path++) {
-		if ((f = fopen(*path, "r")) == NULL)
+
+	while (*(++argv) != NULL) {
+		if ((f = fopen(*argv, "r")) == NULL)
 			goto error;
 		while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
 			nywrite(buf, n, stdout);
@@ -64,6 +63,6 @@ main(int argc, char **argv)
 
 error:
 	fflush(stdout);
-	fprintf(stderr, "%s: %s\n", strerror(errno), *path);
+	fprintf(stderr, "%s: %s\n", strerror(errno), *argv);
 	return 1;
 }
