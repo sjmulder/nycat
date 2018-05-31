@@ -1,5 +1,6 @@
+#ifdef _MSC_VER
 #define _CRT_SECURE_NO_WARNINGS
-#define WIN32_LEAN_AND_MEAN
+#endif
 
 #define LEN(a) (sizeof(a)/sizeof(*(a)))
 
@@ -8,6 +9,7 @@
 #include <errno.h>
 
 #ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
 
@@ -24,7 +26,7 @@ static const char colors[][6] = {
 static int
 setup(void)
 {
-#if _WIN32
+#ifdef _WIN32
 	HANDLE handle;
 	DWORD mode;
 
@@ -64,14 +66,14 @@ nywrite(const char *p, size_t n, FILE *f)
 
 	fputs(colors[color], stdout);
 
-	while ((lf = memchr(cur, '\n', p+n-cur)) != NULL) {
-		fwrite(cur, 1, lf-cur+1, f);
+	while ((lf = memchr(cur, '\n', (size_t)(p+n-cur))) != NULL) {
+		fwrite(cur, 1, (size_t)(lf-cur+1), f);
 		color = (color+1) % (int)LEN(colors);
 		fputs(colors[color], f);
 		cur = lf+1;
 	}
 
-	fwrite(cur, 1, p+n-cur, f);
+	fwrite(cur, 1, (size_t)(p+n-cur), f);
 	fputs("\x1B[0m", f);
 }
 
