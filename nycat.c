@@ -35,7 +35,7 @@ main(int argc, char **argv)
 
 		while (getline(&line, &cap, f) != -1) {
 			fputs(colors[colori], stdout);
-			colori = (colori + 1) % LEN(colors);
+			colori = (colori + 1) % (int)LEN(colors);
 			fputs(line, stdout);
 		}
 
