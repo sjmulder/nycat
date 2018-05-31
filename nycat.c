@@ -4,10 +4,17 @@
    should work on most Unixy terminals and on Windows 10 (Anniversary Update)
    or newer.
 
+   This code follows the JPL coding standards because rainbows are obviously
+   safety critical.
+
    To build and use:
 
-       cc -o nycat nycat.c
-       ./nycat nycat.c
+       make
+       ./nycat file file ...
+
+   Run static analysis (may have to tweak the Makefile):
+
+       make lint
 
    By Sijmen J. Mulder <ik@sjmulder.nl>
    ___
@@ -43,6 +50,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 #include <errno.h>
 
 #ifdef _WIN32
@@ -66,25 +74,29 @@ setup(void)
 #ifdef _WIN32
 	HANDLE handle;
 	DWORD mode;
+	BOOL bret;
 
 	handle = GetStdHandle(STD_OUTPUT_HANDLE);
 	if (handle == NULL) {
-		fputs("No attached console\n", stdout);
+		(void)fputs("No attached console\n", stdout);
 		return -1;
 	} else if (handle == INVALID_HANDLE_VALUE) {
-		fprintf(stderr, "GetStdHandle(): error %d\n", GetLastError());
+		(void)fprintf(stderr, "GetStdHandle(): error %d\n",
+		    GetLastError());
 		return -1;
 	}
 
-	if (GetConsoleMode(handle, &mode) == 0) {
-		fprintf(stderr, "GetConsoleMode(): error %d\n",
+	bret = GetConsoleMode(handle, &mode);
+	if (!bret) {
+		(void)fprintf(stderr, "GetConsoleMode(): error %d\n",
 		    GetLastError());
 		return -1;
 	}
 
 	mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
-	if (SetConsoleMode(handle, mode) == 0) {
-		fprintf(stderr, "SetConsoleMode(): error %d\n",
+	bret = SetConsoleMode(handle, mode);
+	if (!bret) {
+		(void)fprintf(stderr, "SetConsoleMode(): error %d\n",
 		    GetLastError());
 		return -1;
 	}
@@ -98,51 +110,82 @@ nywrite(const char *p, size_t n, FILE *f)
 {
 	static int color = 0;
 
+	size_t i;
 	const char *cur = p;
 	const char *lf;
 
-	fputs(colors[color], stdout);
+	assert(p != NULL);
+	assert(f != NULL);
 
-	while ((lf = memchr(cur, '\n', (size_t)(p+n-cur))) != NULL) {
-		fwrite(cur, 1, (size_t)(lf-cur+1), f);
+	(void)fputs(colors[color], stdout);
+
+	lf = memchr(cur, '\n', (size_t)(p+n-cur));
+	for (i = 0; lf && i < n; i++) {
+		(void)fwrite(cur, 1, (size_t)(lf-cur+1), f);
 		color = (color+1) % (int)LEN(colors);
-		fputs(colors[color], f);
+		(void)fputs(colors[color], f);
 		cur = lf+1;
+		lf = memchr(cur, '\n', (size_t)(p+n-cur));
 	}
 
-	fwrite(cur, 1, (size_t)(p+n-cur), f);
-	fputs("\x1B[0m", f);
+	(void)fwrite(cur, 1, (size_t)(p+n-cur), f);
+	(void)fputs("\x1B[0m", f);
+
+	assert(lf == NULL);
 }
 
 int
 main(int argc, char **argv)
 {
+	int iret;
+	int i;
+	int j;
+	int err;
 	FILE *f;
 	char buf[4096];
-	size_t n;
+	size_t nread;
 
-	if (setup() == -1)
-		return 1;
-
-	if (argc <= 1) {
-		fputs("usage: nycat file file ...\n", stderr);
+	iret = setup();
+	if (iret == -1) {
 		return 1;
 	}
 
-	while (*(++argv) != NULL) {
-		if ((f = fopen(*argv, "r")) == NULL)
-			goto error;
-		while ((n = fread(buf, 1, sizeof(buf), f)) > 0)
-			nywrite(buf, n, stdout);
-		if (ferror(f))
-			goto error;
-		fclose(f);
+	if (argc <= 1) {
+		(void)fputs("usage: nycat file file ...\n", stderr);
+		return 1;
+	}
+
+	assert(argv);
+
+	for (i = 1; i < argc; i++) {
+		f = fopen(argv[i], "r");
+		if (!f) {
+			err = errno;
+			(void)fflush(stdout);
+			(void)fprintf(stderr, "%s: %s\n", strerror(err),
+			    argv[i]);
+			return 1;
+		}
+
+		nread = fread(buf, 1, sizeof(buf), f);
+		for (j = 0; nread && j < 1024 * 1024 * 1024; j++) {
+			nywrite(buf, nread, stdout);
+			nread = fread(buf, 1, sizeof(buf), f);
+		}
+
+		assert(nread == 0);
+
+		if (ferror(f)) {
+			err = errno;
+			(void)fclose(f);
+			(void)fflush(stdout);
+			(void)fprintf(stderr, "%s: %s\n", strerror(err),
+			    argv[i]);
+			return 1;
+		}
+
+		(void)fclose(f);
 	}
 
 	return 0;
-
-error:
-	fflush(stdout);
-	fprintf(stderr, "%s: %s\n", strerror(errno), *argv);
-	return 1;
 }
